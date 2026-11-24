@@ -61,6 +61,8 @@ struct AiuDesc {
   int cube_w = 0; /* only used in ppu1.0*/
   int offset_w = 0; /* only used in ppu1.0*/
   int stride_w = 0; /* only used in ppu1.5*/
+  int dim_n = 1; /* only used in ppu1.5*/
+  int64_t stride_n = 0; /* in elements, only used in ppu1.5*/
 
   template<typename Element, bool Trans, int Block_MN, int Block_K, typename Stride>
   CUTE_HOST_DEVICE
@@ -110,6 +112,15 @@ struct AiuDesc {
     dim_h = h;
     dim_w = w;
     stride_w = stride; /* only used in ppu1.5*/
+  }
+
+  // Dimensions are (H, W, N), with row and plane strides measured in elements.
+  CUTE_HOST_DEVICE
+  void init_3d(const uint8_t* gmem_ptr_, int h, int w, int n,
+               int row_stride, int64_t plane_stride) {
+    init(gmem_ptr_, h, w, row_stride);
+    dim_n = n;
+    stride_n = plane_stride;
   }
 
 

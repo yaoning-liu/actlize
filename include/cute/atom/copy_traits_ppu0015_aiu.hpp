@@ -40,8 +40,8 @@
 namespace cute
 {
 
-template <class NumBitsPerAIU, typename Element, bool Trans, int CUBE_H, int CUBE_W, bool Swzl>
-struct Copy_Traits<PPU0015_AIU_LOAD<NumBitsPerAIU, Element, Trans, CUBE_H, CUBE_W, Swzl>>
+template <class NumBitsPerAIU, typename Element, bool Trans, int CUBE_H, int CUBE_W, bool Swzl, int CUBE_N>
+struct Copy_Traits<PPU0015_AIU_LOAD<NumBitsPerAIU, Element, Trans, CUBE_H, CUBE_W, Swzl, CUBE_N>>
 {
   using ThrID   = Layout<_1>;
 
@@ -62,7 +62,7 @@ struct Copy_Traits<PPU0015_AIU_LOAD<NumBitsPerAIU, Element, Trans, CUBE_H, CUBE_
   copy_unpack_(void *dst_ptr, const void *src_ptr,
                Coord const& src_coord, seq<Is...>) const
   {
-    PPU0015_AIU_LOAD<NumBitsPerAIU, Element, Trans, CUBE_H, CUBE_W, Swzl>::copy(dst_ptr, src_ptr, desc_, get<Is>(src_coord)...);
+    PPU0015_AIU_LOAD<NumBitsPerAIU, Element, Trans, CUBE_H, CUBE_W, Swzl, CUBE_N>::copy(dst_ptr, src_ptr, desc_, get<Is>(src_coord)...);
   }
 
   template <class TS, class SLayout,

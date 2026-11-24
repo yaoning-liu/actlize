@@ -55,27 +55,31 @@ namespace cute
 //   }
 // };
 
-template <class NumBitsPerTMA, int ElemSize, int CUBE_H, int CUBE_W, bool Swzl=true>
+template <class NumBitsPerTMA, int ElemSize, int CUBE_H, int CUBE_W, bool Swzl=true, int CUBE_N=1>
 struct PPU0015_AIU_LOAD_IMPL;
 
-template <class NumBitsPerTMA, int CUBE_H, int CUBE_W, bool Swzl>
-struct PPU0015_AIU_LOAD_IMPL<NumBitsPerTMA, 8, CUBE_H, CUBE_W, Swzl> {
+template <class NumBitsPerTMA, int CUBE_H, int CUBE_W, bool Swzl, int CUBE_N>
+struct PPU0015_AIU_LOAD_IMPL<NumBitsPerTMA, 8, CUBE_H, CUBE_W, Swzl, CUBE_N> {
+
+  static_assert(CUBE_N > 0, "AIU box depth must be positive");
 
   static constexpr int swzl_mode = CUBE_W * 1 == 128 ? 0 : 1;
 
   CUTE_HOST_DEVICE void operator()(void *smem_ptr, const void* gmem_ptr, AiuDesc desc, int coord_w, int coord_h, int coord_n) {
     #if defined(__HGGC_ARCH__) && __HGGC_ARCH__ >= 150
-      uint64_t tensor_stride_w = desc.stride_w * 1;
-      uint64_t tensor_stride_n = tensor_stride_w * desc.dim_h;
+      uint64_t tensor_stride_w = desc.stride_w;
+      uint64_t tensor_stride_n = CUBE_N > 1 ? uint64_t(desc.stride_n) : tensor_stride_w * desc.dim_h;
+      int const tensor_dim_n = CUBE_N > 1 ? desc.dim_n : 1;
+      int const tensor_coord_n = CUBE_N > 1 ? coord_n : 0;
       if constexpr(Swzl) {
         asm volatile(
           "ppu.cp.async.aiu.bulk.tensor.shared.global.2d.tile.LLC::128B.padz.swzl.b8"
           "[%0], [%1], {%2, %3, %4}, {%5, %6, %7}, {%8, %9}, {%10, %11, %12}, %13;\n"
           :: "r"(smem_ptr), "l"(gmem_ptr),
-            "r"(desc.dim_w), "r"(desc.dim_h), "r"(1),
-            "r"(CUBE_W), "r"(CUBE_H), "r"(1),
+            "r"(desc.dim_w), "r"(desc.dim_h), "r"(tensor_dim_n),
+            "r"(CUBE_W), "r"(CUBE_H), "r"(CUBE_N),
             "l"(tensor_stride_w), "l"(tensor_stride_n),
-            "r"(coord_w), "r"(coord_h), "r"(0),
+            "r"(coord_w), "r"(coord_h), "r"(tensor_coord_n),
             "r"(swzl_mode)
         );
       } else {
@@ -83,10 +87,10 @@ struct PPU0015_AIU_LOAD_IMPL<NumBitsPerTMA, 8, CUBE_H, CUBE_W, Swzl> {
           "ppu.cp.async.aiu.bulk.tensor.shared.global.2d.tile.padz.linear.b8"
           "[%0], [%1], {%2, %3, %4}, {%5, %6, %7}, {%8, %9}, {%10, %11, %12}, %13;\n"
           :: "r"(smem_ptr), "l"(gmem_ptr),
-            "r"(desc.dim_w), "r"(desc.dim_h), "r"(1),
-            "r"(CUBE_W), "r"(CUBE_H), "r"(1),
+            "r"(desc.dim_w), "r"(desc.dim_h), "r"(tensor_dim_n),
+            "r"(CUBE_W), "r"(CUBE_H), "r"(CUBE_N),
             "l"(tensor_stride_w), "l"(tensor_stride_n),
-            "r"(coord_w), "r"(coord_h), "r"(0),
+            "r"(coord_w), "r"(coord_h), "r"(tensor_coord_n),
             "r"(swzl_mode)
         );
       }
@@ -105,24 +109,28 @@ struct PPU0015_AIU_LOAD_IMPL<NumBitsPerTMA, 8, CUBE_H, CUBE_W, Swzl> {
   }
 };
 
-template <class NumBitsPerTMA, int CUBE_H, int CUBE_W, bool Swzl>
-struct PPU0015_AIU_LOAD_IMPL<NumBitsPerTMA, 16, CUBE_H, CUBE_W, Swzl> {
+template <class NumBitsPerTMA, int CUBE_H, int CUBE_W, bool Swzl, int CUBE_N>
+struct PPU0015_AIU_LOAD_IMPL<NumBitsPerTMA, 16, CUBE_H, CUBE_W, Swzl, CUBE_N> {
+
+  static_assert(CUBE_N > 0, "AIU box depth must be positive");
 
   static constexpr int swzl_mode = CUBE_W * 2 == 128 ? 0 : 1;
 
   CUTE_HOST_DEVICE void operator()(void *smem_ptr, const void* gmem_ptr, AiuDesc desc, int coord_w, int coord_h, int coord_n) {
     #if defined(__HGGC_ARCH__) && __HGGC_ARCH__ >= 150
       uint64_t tensor_stride_w = desc.stride_w * 2;
-      uint64_t tensor_stride_n = tensor_stride_w * desc.dim_h;
+      uint64_t tensor_stride_n = CUBE_N > 1 ? uint64_t(desc.stride_n) * 2 : tensor_stride_w * desc.dim_h;
+      int const tensor_dim_n = CUBE_N > 1 ? desc.dim_n : 1;
+      int const tensor_coord_n = CUBE_N > 1 ? coord_n : 0;
       if constexpr(Swzl) {
         asm volatile(
           "ppu.cp.async.aiu.bulk.tensor.shared.global.2d.tile.LLC::128B.padz.swzl.b16"
           "[%0], [%1], {%2, %3, %4}, {%5, %6, %7}, {%8, %9}, {%10, %11, %12}, %13;\n"
           :: "r"(smem_ptr), "l"(gmem_ptr),
-            "r"(desc.dim_w), "r"(desc.dim_h), "r"(1),
-            "r"(CUBE_W), "r"(CUBE_H), "r"(1),
+            "r"(desc.dim_w), "r"(desc.dim_h), "r"(tensor_dim_n),
+            "r"(CUBE_W), "r"(CUBE_H), "r"(CUBE_N),
             "l"(tensor_stride_w), "l"(tensor_stride_n),
-            "r"(coord_w), "r"(coord_h), "r"(0),
+            "r"(coord_w), "r"(coord_h), "r"(tensor_coord_n),
             "r"(swzl_mode)
         );
       } else {
@@ -130,10 +138,10 @@ struct PPU0015_AIU_LOAD_IMPL<NumBitsPerTMA, 16, CUBE_H, CUBE_W, Swzl> {
           "ppu.cp.async.aiu.bulk.tensor.shared.global.2d.tile.padz.linear.b16"
           "[%0], [%1], {%2, %3, %4}, {%5, %6, %7}, {%8, %9}, {%10, %11, %12}, %13;\n"
           :: "r"(smem_ptr), "l"(gmem_ptr),
-            "r"(desc.dim_w), "r"(desc.dim_h), "r"(1),
-            "r"(CUBE_W), "r"(CUBE_H), "r"(1),
+            "r"(desc.dim_w), "r"(desc.dim_h), "r"(tensor_dim_n),
+            "r"(CUBE_W), "r"(CUBE_H), "r"(CUBE_N),
             "l"(tensor_stride_w), "l"(tensor_stride_n),
-            "r"(coord_w), "r"(coord_h), "r"(0),
+            "r"(coord_w), "r"(coord_h), "r"(tensor_coord_n),
             "r"(swzl_mode)
         );
       }
@@ -143,8 +151,10 @@ struct PPU0015_AIU_LOAD_IMPL<NumBitsPerTMA, 16, CUBE_H, CUBE_W, Swzl> {
   }
 };
 
-template <class NumBitsPerTMA, int CUBE_H, int CUBE_W, bool Swzl>
-struct PPU0015_AIU_LOAD_IMPL<NumBitsPerTMA, 32, CUBE_H, CUBE_W, Swzl> {
+template <class NumBitsPerTMA, int CUBE_H, int CUBE_W, bool Swzl, int CUBE_N>
+struct PPU0015_AIU_LOAD_IMPL<NumBitsPerTMA, 32, CUBE_H, CUBE_W, Swzl, CUBE_N> {
+
+  static_assert(CUBE_N > 0, "AIU box depth must be positive");
 
   static constexpr int swzl_mode = CUBE_W * 4 == 128 ? 0 : 1;
 
@@ -157,16 +167,18 @@ struct PPU0015_AIU_LOAD_IMPL<NumBitsPerTMA, 32, CUBE_H, CUBE_W, Swzl> {
 #endif
     #if defined(__HGGC_ARCH__) && __HGGC_ARCH__ >= 150
       uint64_t tensor_stride_w = desc.stride_w * 4;
-      uint64_t tensor_stride_n = tensor_stride_w * desc.dim_h;
+      uint64_t tensor_stride_n = CUBE_N > 1 ? uint64_t(desc.stride_n) * 4 : tensor_stride_w * desc.dim_h;
+      int const tensor_dim_n = CUBE_N > 1 ? desc.dim_n : 1;
+      int const tensor_coord_n = CUBE_N > 1 ? coord_n : 0;
       if constexpr(Swzl) {
         asm volatile(
           "ppu.cp.async.aiu.bulk.tensor.shared.global.2d.tile.LLC::128B.padz.swzl.b32"
           "[%0], [%1], {%2, %3, %4}, {%5, %6, %7}, {%8, %9}, {%10, %11, %12}, %13;\n"
           :: "r"(smem_ptr), "l"(gmem_ptr),
-            "r"(desc.dim_w), "r"(desc.dim_h), "r"(1),
-            "r"(CUBE_W), "r"(CUBE_H), "r"(1),
+            "r"(desc.dim_w), "r"(desc.dim_h), "r"(tensor_dim_n),
+            "r"(CUBE_W), "r"(CUBE_H), "r"(CUBE_N),
             "l"(tensor_stride_w), "l"(tensor_stride_n),
-            "r"(coord_w), "r"(coord_h), "r"(0),
+            "r"(coord_w), "r"(coord_h), "r"(tensor_coord_n),
             "r"(swzl_mode)
         );
       } else {
@@ -174,10 +186,10 @@ struct PPU0015_AIU_LOAD_IMPL<NumBitsPerTMA, 32, CUBE_H, CUBE_W, Swzl> {
           "ppu.cp.async.aiu.bulk.tensor.shared.global.2d.tile.padz.linear.b32"
           "[%0], [%1], {%2, %3, %4}, {%5, %6, %7}, {%8, %9}, {%10, %11, %12}, %13;\n"
           :: "r"(smem_ptr), "l"(gmem_ptr),
-            "r"(desc.dim_w), "r"(desc.dim_h), "r"(1),
-            "r"(CUBE_W), "r"(CUBE_H), "r"(1),
+            "r"(desc.dim_w), "r"(desc.dim_h), "r"(tensor_dim_n),
+            "r"(CUBE_W), "r"(CUBE_H), "r"(CUBE_N),
             "l"(tensor_stride_w), "l"(tensor_stride_n),
-            "r"(coord_w), "r"(coord_h), "r"(0),
+            "r"(coord_w), "r"(coord_h), "r"(tensor_coord_n),
             "r"(swzl_mode)
         );
       }
@@ -187,26 +199,28 @@ struct PPU0015_AIU_LOAD_IMPL<NumBitsPerTMA, 32, CUBE_H, CUBE_W, Swzl> {
   }
 };
 
-template <class NumBitsPerTMA, typename Element, bool Trans, int CUBE_H, int CUBE_W, bool Swzl = true>
+// CUBE_N == 1 preserves the legacy 2D descriptor and ignores coord_n.
+// Keep Swzl before CUBE_N for compatibility with existing 2D callers.
+template <class NumBitsPerTMA, typename Element, bool Trans, int CUBE_H, int CUBE_W, bool Swzl = true, int CUBE_N = 1>
 struct PPU0015_AIU_LOAD;
 
-template <class NumBitsPerTMA, typename Element, int CUBE_H, int CUBE_W, bool Swzl>
-struct PPU0015_AIU_LOAD<NumBitsPerTMA, Element, false, CUBE_H, CUBE_W, Swzl>
+template <class NumBitsPerTMA, typename Element, int CUBE_H, int CUBE_W, bool Swzl, int CUBE_N>
+struct PPU0015_AIU_LOAD<NumBitsPerTMA, Element, false, CUBE_H, CUBE_W, Swzl, CUBE_N>
 {
   CUTE_HOST_DEVICE static void
   copy(void *smem_ptr, const void* gmem_ptr, AiuDesc desc, int coord_w, int coord_h, int coord_n = 0)
   {
-    PPU0015_AIU_LOAD_IMPL<NumBitsPerTMA, sizeof_bits<Element>::value, CUBE_H, CUBE_W, Swzl>()(smem_ptr, gmem_ptr, desc, coord_w, coord_h, coord_n);
+    PPU0015_AIU_LOAD_IMPL<NumBitsPerTMA, sizeof_bits<Element>::value, CUBE_H, CUBE_W, Swzl, CUBE_N>()(smem_ptr, gmem_ptr, desc, coord_w, coord_h, coord_n);
   }
 };
 
-template <class NumBitsPerTMA, typename Element, int CUBE_H, int CUBE_W, bool Swzl>
-struct PPU0015_AIU_LOAD<NumBitsPerTMA, Element, true, CUBE_H, CUBE_W, Swzl>
+template <class NumBitsPerTMA, typename Element, int CUBE_H, int CUBE_W, bool Swzl, int CUBE_N>
+struct PPU0015_AIU_LOAD<NumBitsPerTMA, Element, true, CUBE_H, CUBE_W, Swzl, CUBE_N>
 {
   CUTE_HOST_DEVICE static void
   copy(void *smem_ptr, const void* gmem_ptr, AiuDesc desc, int coord_h, int coord_w, int coord_n = 0)
   {
-    PPU0015_AIU_LOAD_IMPL<NumBitsPerTMA, sizeof_bits<Element>::value, CUBE_H, CUBE_W, Swzl>()(smem_ptr, gmem_ptr, desc, coord_w, coord_h, coord_n);
+    PPU0015_AIU_LOAD_IMPL<NumBitsPerTMA, sizeof_bits<Element>::value, CUBE_H, CUBE_W, Swzl, CUBE_N>()(smem_ptr, gmem_ptr, desc, coord_w, coord_h, coord_n);
   }
 };
 
